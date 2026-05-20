@@ -62,11 +62,24 @@ async function main() {
   if (!INJECT_CONTEXT) {
     // Pure telemetry path: caller never reads the response, so don't
     // block on it. AbortSignal.timeout caps the wait the event loop
-    // gives the pending socket before exit.
+    // gives the pending socket before exit. Server-side observe now
+    // auto-creates a session row when one is missing (#522), so a
+    // dropped POST here is a missed context-inject, not data loss.
     fetch(url, {
       ...init,
       signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
-    }).catch(() => {});
+    })
+      .then((res) => {
+        // Surface HTTP errors so wiring problems (wrong URL, auth)
+        // don't stay invisible. Network/timeout errors fall through
+        // to .catch() and stay quiet — those are common on cold-start.
+        if (!res.ok) {
+          process.stderr.write(
+            `[agentmemory] session/start returned ${res.status} for ${sessionId}\n`,
+          );
+        }
+      })
+      .catch(() => {});
     return;
   }
 
@@ -80,9 +93,14 @@ async function main() {
       if (result.context) {
         process.stdout.write(result.context);
       }
+    } else {
+      process.stderr.write(
+        `[agentmemory] session/start returned ${res.status} for ${sessionId}\n`,
+      );
     }
   } catch {
-    // silently fail -- don't block Claude Code startup
+    // network/timeout — don't block Claude Code startup; observe-side
+    // will still pick up the session via auto-upsert (#522).
   }
 }
 

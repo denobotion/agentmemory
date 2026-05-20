@@ -41,6 +41,8 @@ async function main() {
 		fetch(url, {
 			...init,
 			signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS)
+		}).then((res) => {
+			if (!res.ok) process.stderr.write(`[agentmemory] session/start returned ${res.status} for ${sessionId}\n`);
 		}).catch(() => {});
 		return;
 	}
@@ -52,7 +54,7 @@ async function main() {
 		if (res.ok) {
 			const result = await res.json();
 			if (result.context) process.stdout.write(result.context);
-		}
+		} else process.stderr.write(`[agentmemory] session/start returned ${res.status} for ${sessionId}\n`);
 	} catch {}
 }
 main();

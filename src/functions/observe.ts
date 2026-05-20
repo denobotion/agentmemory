@@ -214,6 +214,28 @@ export function registerObserveFunction(
             }
           }
           await kv.update(KV.sessions, payload.sessionId, updates);
+        } else {
+          // Auto-create the session row when an observation arrives before
+          // (or instead of) a successful session/start call. The hook
+          // scripts call session/start as fire-and-forget; on transient
+          // server unavailability that POST is silently dropped, leaving
+          // observations orphaned from GET /agentmemory/sessions even
+          // though they're present on disk. Re-creating here closes the
+          // data-loss hole permanently; session/start remains the fast
+          // path (it also returns the injected context).
+          const firstPrompt =
+            typeof raw.userPrompt === "string"
+              ? raw.userPrompt.replace(/\s+/g, " ").trim().slice(0, 200)
+              : undefined;
+          await kv.set(KV.sessions, payload.sessionId, {
+            id: payload.sessionId,
+            project: payload.project,
+            cwd: payload.cwd,
+            startedAt: payload.timestamp,
+            status: "active",
+            observationCount: 1,
+            ...(firstPrompt ? { firstPrompt } : {}),
+          });
         }
 
         // Per-observation LLM compression is opt-in as of 0.8.8 (#138).
