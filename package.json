@@ -64,6 +64,12 @@
     "collectCoverageFrom": [
       "src/**/*.ts",
       "!src/**/*.d.ts"
-    ]
+    ],
+    "verbose": true,
+    "coverageThreshold": {
+      "global": {
+        "lines": 50
+      }
+    }
   }
 }
